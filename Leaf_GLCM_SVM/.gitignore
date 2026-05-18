@@ -1,0 +1,17 @@
+# Môi trường ảo Python
+.venv/
+env/
+venv/
+
+# Các file cache hệ thống
+__pycache__/
+*.pyc
+.DS_Store
+
+# Thư mục chứa ảnh dữ liệu thô (Chỉ giữ lại code, không upload ảnh)
+dataset/swedish_leaf_dataset/
+dataset/*.zip
+
+# File cấu hình của PyCharm hoặc VS Code
+.idea/
+.vscode/
