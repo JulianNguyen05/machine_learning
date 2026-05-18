@@ -49,7 +49,7 @@ def train_and_evaluate_svm():
     print("🧠 4. Đang khởi tạo và huấn luyện mô hình SVM...")
     # Sử dụng kernel='rbf' (Radial Basis Function) rất mạnh mẽ cho dữ liệu phi tuyến tính của GLCM
     # C=1.0 là tham số phạt lỗi, gamma='scale' tự động tính toán hệ số ảnh hưởng của các điểm dữ liệu
-    svm_model = SVC(kernel='rbf', C=1.0, gamma='scale', random_state=42)
+    svm_model = SVC(kernel='rbf', C=1.0, gamma='scale', random_state=42, probability=True)
     svm_model.fit(X_train, y_train)
     print("✅ Huấn luyện mô hình thành công!")
 
