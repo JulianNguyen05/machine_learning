@@ -1,6 +1,5 @@
-# ==========================================
-# 1. CẤU HÌNH & IMPORT
-# ==========================================
+# src/ml/feature_extraction.py
+
 import os
 os.environ['OPENCV_LOG_LEVEL'] = 'ERROR'
 
@@ -8,26 +7,24 @@ import cv2
 import glob
 import numpy as np
 import pandas as pd
-import joblib  # Dùng để lưu scaler và mapping
-from tqdm import tqdm  # Thư viện tạo thanh tiến trình chuyên nghiệp
+import joblib
+from tqdm import tqdm
 
-# 🎯 TỰ ĐỘNG TÌM THƯ MỤC GỐC DỰ ÁN (Leaf_GLCM_SVM)
-# os.path.abspath(__file__) lấy đường dẫn file này -> đi ngược lên 2 cấp thư mục sẽ ra thư mục gốc
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# ĐÃ SỬA LẠI ĐƯỜNG DẪN: Đi ngược 3 cấp (src/ml/feature_extraction.py -> ml -> src -> Leaf_GLCM_SVM)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Định nghĩa các đường dẫn chuẩn theo thư mục gốc
 DATASET_PATH = os.path.join(BASE_DIR, 'dataset', 'swedish_leaf_dataset', 'Swedish', 'Train')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'models')
 OUTPUT_CSV = os.path.join(BASE_DIR, 'dataset', 'leaf_features_training.csv')
 MAPPING_FILE = os.path.join(OUTPUT_DIR, 'label_mapping.pkl')
 
-# Tạo thư mục models ở gốc nếu chưa có
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 TARGET_SIZE = (256, 256)
 LEVELS = 8
 ANGLES = [0, 45, 90, 135]
 
+# Giữ lại map tiếng Anh lúc train
 LEAF_MAPPING = {
     "0": {"en": "Ulmus carpinifolia", "vn": "Cây Du"},
     "1": {"en": "Acer", "vn": "Cây Phong"},
@@ -46,10 +43,6 @@ LEAF_MAPPING = {
     "14": {"en": "Fagus silvatica", "vn": "Cây Dẻ gai châu Âu"}
 }
 
-
-# ==========================================
-# 2. HÀM TÍNH TOÁN (GIỮ NGUYÊN LOGIC CỦA BẠN)
-# ==========================================
 def compute_glcm_manual(image, distance=1, angle=0, symmetric=True):
     glcm = np.zeros((LEVELS, LEVELS), dtype=float)
     rows, cols = image.shape
@@ -75,13 +68,11 @@ def compute_glcm_manual(image, distance=1, angle=0, symmetric=True):
         glcm = glcm + glcm.T
     return glcm
 
-
 def extract_features_from_image(img_path):
     img_gray = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     if img_gray is None: return None
 
     img_resized = cv2.resize(img_gray, TARGET_SIZE, interpolation=cv2.INTER_AREA)
-    # Gom mức xám về LEVELS (VD: 8 mức)
     img_quantized = (img_resized // (256 // LEVELS)).astype('uint8')
 
     glcm_combined = np.zeros((LEVELS, LEVELS))
@@ -116,11 +107,6 @@ def extract_features_from_image(img_path):
 
     return features
 
-
-# ==========================================
-# 3. QUY TRÌNH TRÍCH XUẤT ĐỂ TRAIN MODEL
-# ==========================================
-# 🎯 THÊM DÒNG NÀY ĐỂ BẢO VỆ: Chỉ chạy khi bấm RUN trực tiếp file này
 if __name__ == "__main__":
     print("🚀 Bắt đầu quá trình chuẩn bị dữ liệu huấn luyện...")
 
@@ -138,9 +124,6 @@ if __name__ == "__main__":
                 features['Label_ID'] = int(clean_id)
                 all_data.append(features)
 
-    # ==========================================
-    # 4. LƯU TRỮ & CHUẨN HÓA (DÀNH RIÊNG CHO MODEL)
-    # ==========================================
     if all_data:
         df = pd.DataFrame(all_data)
         joblib.dump(LEAF_MAPPING, MAPPING_FILE)

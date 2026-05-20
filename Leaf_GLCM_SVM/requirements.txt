@@ -1,0 +1,8 @@
+joblib~=1.5.3
+pandas~=3.0.3
+scikit-learn~=1.8.0
+opencv-python~=4.13.0.92
+numpy~=2.4.5
+tqdm~=4.67.3
+customtkinter~=5.2.2
+pillow~=12.2.0
