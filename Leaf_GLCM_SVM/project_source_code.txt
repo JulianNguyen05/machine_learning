@@ -1,983 +1,542 @@
-// Leaf_GLCM_SVM/src/ml/predictor.py
+Bạn nên nâng cấp theo hướng **AI Product Desktop App** thay vì chỉ là app demo ML. Hiện tại UI của bạn đã đẹp hơn mức cơ bản rồi, nhưng còn thiếu cảm giác:
 
-import os
-import joblib
-import pandas as pd
-from src.ml.feature_extraction import extract_features_from_image
-from src.data.plants_db import PLANTS_DB
+* chuyên nghiệp
+* trực quan AI
+* có chiều sâu dữ liệu sinh học
+* có dashboard phân tích
+* có workflow rõ ràng
 
-# ĐÃ SỬA LẠI ĐƯỜNG DẪN: Lùi 3 cấp
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MODEL_PATH = os.path.join(BASE_DIR, 'models', 'leaf_svm_model.pkl')
-SCALER_PATH = os.path.join(BASE_DIR, 'models', 'scaler.pkl')
+Dưới đây là hướng nâng cấp rất mạnh để app nhìn giống sản phẩm nghiên cứu/thương mại thật.
 
-def predict_new_image(img_path):
-    if not (os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH)):
-        return None, None, None, "⚠️ Thiếu file cấu hình model! (model.pkl hoặc scaler.pkl)"
+---
 
-    # 1. Trích xuất đặc trưng
-    features = extract_features_from_image(img_path)
-    if features is None:
-        return None, None, None, "❌ Không thể xử lý bức ảnh này!"
+# 1. NÂNG CẤP DATABASE (QUAN TRỌNG NHẤT)
 
-    model = joblib.load(MODEL_PATH)
-    scaler = joblib.load(SCALER_PATH)
+Hiện DB của bạn quá ít thông tin:
 
-    # 2. Chuẩn hóa đặc trưng
-    df_features = pd.DataFrame([features])
-    features_scaled = scaler.transform(df_features)
+```python
+"14": {
+    "name_vn": "...",
+    "description": "...",
+    "habitat": "..."
+}
+```
 
-    # 3. Tính toán tỷ lệ phần trăm (%)
-    prob_dist = model.predict_proba(features_scaled)[0]
-    class_ids = model.classes_
-    prob_pairs = sorted(zip(class_ids, prob_dist), key=lambda x: x[1], reverse=True)
+Nó làm app nhìn như demo sinh viên.
 
-    # 4. Trả về kết quả Top 3
-    top_probabilities = []
-    for cid, prob in prob_pairs[:3]:
-        name_vn = PLANTS_DB.get(str(cid), {}).get("name_vn", "Không rõ")
-        top_probabilities.append({
-            "label_id": str(cid),
-            "vn": name_vn,
-            "percent": round(prob * 100, 2)
-        })
+---
 
-    # Lấy thông tin cây giống nhất (Top 1)
-    highest_cid = prob_pairs[0][0]
-    best_match = {
-        "label_id": str(highest_cid),
-        "vn": PLANTS_DB.get(str(highest_cid), {}).get("name_vn", "Không rõ"),
-        "percent": round(prob_pairs[0][1] * 100, 2)
+## Nâng cấp structure thành:
+
+```python
+"14": {
+    "name_vn": "Cây Dẻ gai châu Âu",
+    "scientific_name": "Fagus sylvatica",
+    "family": "Fagaceae",
+    "common_names": [
+        "European Beech",
+        "Dẻ gai châu Âu"
+    ],
+
+    "origin": "Châu Âu",
+    "habitat": "Rừng ôn đới trung tâm và tây Âu",
+    "leaf_type": "Lá đơn",
+    "leaf_shape": "Hình xoan",
+    "leaf_margin": "Mép hơi lượn sóng",
+
+    "description":
+        "Lá nguyên, hình xoan, mép hơi lượn sóng.",
+
+    "medical_uses":
+        "Vỏ cây dùng hỗ trợ điều trị bệnh ngoài da và viêm màng nhầy.",
+
+    "toxicity":
+        "Không độc",
+
+    "average_height":
+        "30 - 40m",
+
+    "lifespan":
+        "150 - 300 năm",
+
+    "conservation_status":
+        "Least Concern",
+
+    "ai_features": {
+        "texture_level": "Medium",
+        "vein_density": "High",
+        "edge_complexity": "Low"
     }
+}
+```
 
-    return best_match, top_probabilities, features, None
-    # app.py
-
-
-// Leaf_GLCM_SVM/app.py
-import os
-from tkinter import filedialog, messagebox
-from PIL import Image
-
-import customtkinter as ctk
-
-# Import Layer Giao Diện (View) và Dữ Liệu/AI (Model)
-from src.gui.main_window import LeafVisionUI
-from src.data.plants_db import PLANTS_DB
-from src.ml.predictor import predict_new_image
-
-
-class LeafVisionController:
-    def __init__(self):
-        # Khởi tạo giao diện độc lập và đẩy các hàm xử lý sự kiện qua tham số
-        self.ui = LeafVisionUI(
-            on_select_image=self.handle_select_image,
-            on_run_ai=self.handle_run_ai,
-            on_search=self.handle_search_filter
-        )
+---
 
-        self.current_file_path = None
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+# 2. THÊM “SCIENTIFIC CARD”
 
-        # Đổ dữ liệu từ điển mặc định lên giao diện lúc khởi động app
-        self.ui.render_db_list(PLANTS_DB, self.base_dir)
+Ở phần kết quả AI.
 
-    def handle_select_image(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.jpg *.jpeg *.png *.webp")])
-        if not file_path:
-            return
+Hiện chỉ có:
 
-        self.current_file_path = file_path
+* tên
+* accuracy
+* habitat
+* description
 
-        try:
-            # Đoạn xử lý RAM ảnh lớn an toàn
-            pil_img = Image.open(file_path)
-            pil_img.thumbnail((400, 350))
+=> quá đơn giản.
 
-            # Gửi đối tượng ảnh sạch sang cho UI hiển thị
-            ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=pil_img.size)
-            self.ui.update_image_preview(ctk_img, os.path.basename(file_path))
-        except Exception as e:
-            messagebox.showerror("Lỗi đọc tập tin", f"Không thể giải mã hình ảnh này: {str(e)}")
+---
 
-    def handle_run_ai(self):
-        if not self.current_file_path:
-            return
+## Hãy thêm:
 
-        # Ra lệnh cho UI hiển thị màn hình chờ loading
-        self.ui.show_loading_status()
-
-        # Thực thi xử lý thuật toán Máy học (Offline Core AI)
-        best_match, top_probs, features, error = predict_new_image(self.current_file_path)
-
-        if error:
-            self.ui.show_error_status(error)
-            return
-
-        # Ánh xạ từ ID AI sang thông tin khoa học trong Hard Data
-        label_id = str(best_match.get('label_id', ''))
-        plant_details = PLANTS_DB.get(label_id, {
-            "name_vn": "Không rõ tên loài",
-            "description": "Chưa cập nhật dữ liệu",
-            "habitat": "Không rõ"
-        })
-
-        # Đẩy toàn bộ cục dữ liệu đã tính toán xong xuôi ra UI để render
-        self.ui.display_ai_results(
-            name_vn=plant_details['name_vn'],
-            accuracy=best_match['percent'],
-            habitat=plant_details['habitat'],
-            description=plant_details['description'],
-            top_probs=top_probs,
-            features=features
-        )
-
-    def handle_search_filter(self, search_text):
-        query = search_text.strip().lower()
-        if not query:
-            self.ui.render_db_list(PLANTS_DB, self.base_dir)
-            return
-
-        # Xử lý thuật toán tìm kiếm cục bộ (0ms Delay)
-        filtered_dict = {}
-        for cid, info in PLANTS_DB.items():
-            if query in info['name_vn'].lower() or query == cid:
-                filtered_dict[cid] = info
-
-        # Đẩy kết quả lọc được ra lại màn hình
-        self.ui.render_db_list(filtered_dict, self.base_dir)
-
-    def run(self):
-        # Chạy vòng lặp ứng dụng Desktop
-        self.ui.mainloop()
+### 🧬 Scientific Classification
 
+```text
+Kingdom: Plantae
+Family: Fagaceae
+Species: Fagus sylvatica
+```
 
-if __name__ == "__main__":
-    app = LeafVisionController()
-    app.run()
-    # src/gui/main_window.py
+---
 
+## 🌱 Leaf Morphology
 
-// Leaf_GLCM_SVM/src/gui/main_window.py
-import os
-import customtkinter as ctk
-from PIL import Image
-
-# =========================================================
-# GLOBAL UI CONFIG
-# =========================================================
-
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("dark-blue")
-
-
-class LeafVisionUI(ctk.CTk):
-
-    def __init__(self, on_select_image, on_run_ai, on_search):
-        super().__init__()
-
-        # =====================================================
-        # CALLBACKS
-        # =====================================================
-
-        self.on_select_image = on_select_image
-        self.on_run_ai = on_run_ai
-        self.on_search = on_search
-
-        # =====================================================
-        # WINDOW
-        # =====================================================
-
-        self.title("LeafVision AI - Hệ Thống Phân Tích Hình Thái Lá Cây")
-        self.geometry("1180x760")
-        self.minsize(1050, 680)
-
-        self.configure(fg_color="#020617")
-
-        # =====================================================
-        # TAB VIEW
-        # =====================================================
-
-        self.tabview = ctk.CTkTabview(
-            self,
-            fg_color="#020617",
-            segmented_button_fg_color="#0f172a",
-            segmented_button_selected_color="#10b981",
-            segmented_button_selected_hover_color="#059669",
-            segmented_button_unselected_color="#111827",
-            segmented_button_unselected_hover_color="#1e293b",
-            corner_radius=18,
-            border_width=1,
-            border_color="#1e293b"
-        )
-
-        self.tabview._segmented_button.configure(
-            font=("Inter", 14, "bold"),
-            height=42
-        )
-
-        self.tabview.pack(
-            padx=18,
-            pady=18,
-            fill="both",
-            expand=True
-        )
-
-        self.tab_scan = self.tabview.add("🔍 Quét Lá Phân Tích")
-        self.tab_db = self.tabview.add("📚 Từ Điển Thực Vật")
-
-        self.tab_scan.configure(fg_color="#020617")
-        self.tab_db.configure(fg_color="#020617")
-
-        self._init_scan_tab_layout()
-        self._init_db_tab_layout()
-
-    # =========================================================
-    # TAB QUÉT LÁ
-    # =========================================================
-
-    def _init_scan_tab_layout(self):
-
-        self.tab_scan.grid_columnconfigure(0, weight=4, minsize=420)
-        self.tab_scan.grid_columnconfigure(1, weight=5, minsize=500)
-        self.tab_scan.grid_rowconfigure(0, weight=1)
-
-        # =====================================================
-        # LEFT PANEL
-        # =====================================================
-
-        left_frame = ctk.CTkFrame(
-            self.tab_scan,
-            fg_color="transparent"
-        )
-
-        left_frame.grid(
-            row=0,
-            column=0,
-            padx=(18, 10),
-            pady=18,
-            sticky="nsew"
-        )
-
-        # TITLE
-        ctk.CTkLabel(
-            left_frame,
-            text="AI Leaf Scanner",
-            font=("Inter", 28, "bold"),
-            text_color="#f8fafc"
-        ).pack(anchor="w", pady=(0, 4))
-
-        ctk.CTkLabel(
-            left_frame,
-            text="Phân tích hình thái và kết cấu lá cây bằng AI",
-            font=("Inter", 13),
-            text_color="#94a3b8"
-        ).pack(anchor="w", pady=(0, 18))
-
-        # BUTTON SELECT
-        self.btn_select = ctk.CTkButton(
-            left_frame,
-            text="📁 Chọn Ảnh Lá Cây",
-            command=self.on_select_image,
-            font=("Inter", 14, "bold"),
-            height=48,
-            corner_radius=16,
-            fg_color="#0f172a",
-            hover_color="#1e293b",
-            border_width=1,
-            border_color="#1e293b",
-            text_color="#f8fafc"
-        )
-
-        self.btn_select.pack(fill="x", pady=(0, 14))
-
-        # PREVIEW CONTAINER
-        self.preview_container = ctk.CTkFrame(
-            left_frame,
-            fg_color="#0b1120",
-            border_width=2,
-            border_color="#1e293b",
-            corner_radius=22
-        )
-
-        self.preview_container.pack(
-            fill="both",
-            expand=True,
-            pady=6
-        )
-
-        self.lbl_preview_img = ctk.CTkLabel(
-            self.preview_container,
-            text="🌿\n\nKéo thả hoặc tải ảnh lá cây\n\nHỗ trợ ảnh macro độ phân giải cao",
-            font=("Inter", 15),
-            text_color="#64748b",
-            justify="center"
-        )
-
-        self.lbl_preview_img.pack(expand=True)
-
-        # FILE NAME
-        self.lbl_file_name = ctk.CTkLabel(
-            left_frame,
-            text="",
-            font=("Inter", 12),
-            text_color="#94a3b8"
-        )
-
-        self.lbl_file_name.pack(pady=10)
-
-        # ANALYZE BUTTON
-        self.btn_analyze = ctk.CTkButton(
-            left_frame,
-            text="⚡ Chạy AI Phân Tích",
-            command=self.on_run_ai,
-            font=("Inter", 14, "bold"),
-            fg_color="#10b981",
-            hover_color="#059669",
-            height=52,
-            corner_radius=16,
-            text_color="#ffffff"
-        )
-
-        self.btn_analyze.pack(fill="x", pady=(6, 0))
-        self.btn_analyze.configure(state="disabled")
-
-        # =====================================================
-        # RIGHT PANEL
-        # =====================================================
-
-        self.right_frame = ctk.CTkScrollableFrame(
-            self.tab_scan,
-            fg_color="#0f172a",
-            border_width=1,
-            border_color="#1e293b",
-            corner_radius=22
-        )
-
-        self.right_frame.grid(
-            row=0,
-            column=1,
-            padx=(10, 18),
-            pady=18,
-            sticky="nsew"
-        )
-
-        self.lbl_status = ctk.CTkLabel(
-            self.right_frame,
-            text="🧠\n\nHệ thống AI đã sẵn sàng.\nVui lòng tải ảnh ở cột bên trái.",
-            font=("Inter", 16),
-            text_color="#94a3b8",
-            justify="center"
-        )
-
-        self.lbl_status.pack(
-            pady=120,
-            expand=True
-        )
-
-    # =========================================================
-    # TAB DATABASE
-    # =========================================================
-
-    def _init_db_tab_layout(self):
-
-        # SEARCH BAR
-        search_frame = ctk.CTkFrame(
-            self.tab_db,
-            fg_color="transparent"
-        )
-
-        search_frame.pack(
-            fill="x",
-            padx=18,
-            pady=(18, 10)
-        )
-
-        ctk.CTkLabel(
-            search_frame,
-            text="🔍 Tìm kiếm:",
-            font=("Inter", 14, "bold"),
-            text_color="#f8fafc"
-        ).pack(side="left", padx=(4, 12))
-
-        self.search_var = ctk.StringVar()
-
-        self.search_var.trace_add(
-            "write",
-            lambda *args: self.on_search(self.search_var.get())
-        )
-
-        self.entry_search = ctk.CTkEntry(
-            search_frame,
-            placeholder_text="Nhập tên cây thuốc hoặc Label ID...",
-            textvariable=self.search_var,
-            height=42,
-            corner_radius=16,
-            fg_color="#0f172a",
-            border_color="#1e293b",
-            text_color="#f8fafc",
-            placeholder_text_color="#64748b",
-            font=("Inter", 13)
-        )
-
-        self.entry_search.pack(
-            side="left",
-            fill="x",
-            expand=True
-        )
-
-        # DATABASE SCROLL
-        self.scroll_db = ctk.CTkScrollableFrame(
-            self.tab_db,
-            fg_color="#0b1120",
-            border_width=1,
-            border_color="#1e293b",
-            corner_radius=22
-        )
-
-        self.scroll_db.pack(
-            fill="both",
-            expand=True,
-            padx=18,
-            pady=(6, 18)
-        )
-
-    # =========================================================
-    # UPDATE PREVIEW
-    # =========================================================
-
-    def update_image_preview(self, ctk_img, file_name):
-
-        self.lbl_preview_img.configure(
-            image=ctk_img,
-            text=""
-        )
-
-        self.lbl_file_name.configure(
-            text=f"📄 {file_name}"
-        )
-
-        self.btn_analyze.configure(state="normal")
-
-    # =========================================================
-    # CLEAR RESULTS
-    # =========================================================
-
-    def clear_results_panel(self):
-
-        for widget in self.right_frame.winfo_children():
-            widget.destroy()
-
-    # =========================================================
-    # LOADING
-    # =========================================================
-
-    def show_loading_status(self):
-
-        self.clear_results_panel()
-
-        loading_frame = ctk.CTkFrame(
-            self.right_frame,
-            fg_color="#111827",
-            corner_radius=18,
-            border_width=1,
-            border_color="#1e293b"
-        )
-
-        loading_frame.pack(
-            fill="x",
-            padx=12,
-            pady=12
-        )
-
-        ctk.CTkLabel(
-            loading_frame,
-            text="🧠",
-            font=("Segoe UI Emoji", 52)
-        ).pack(pady=(28, 10))
-
-        ctk.CTkLabel(
-            loading_frame,
-            text="Đang phân tích hình thái lá...",
-            font=("Inter", 18, "bold"),
-            text_color="#34d399"
-        ).pack()
-
-        ctk.CTkLabel(
-            loading_frame,
-            text="Extracting texture matrix • Running AI classifier",
-            font=("Inter", 12),
-            text_color="#94a3b8"
-        ).pack(pady=(8, 18))
-
-        progress = ctk.CTkProgressBar(
-            loading_frame,
-            height=10,
-            progress_color="#10b981"
-        )
-
-        progress.pack(fill="x", padx=40, pady=(0, 28))
-        progress.set(0.7)
-
-        self.update()
-
-    # =========================================================
-    # ERROR
-    # =========================================================
-
-    def show_error_status(self, error_message):
-
-        self.clear_results_panel()
-
-        err_frame = ctk.CTkFrame(
-            self.right_frame,
-            fg_color="#111827",
-            corner_radius=18,
-            border_width=1,
-            border_color="#7f1d1d"
-        )
-
-        err_frame.pack(
-            fill="x",
-            padx=12,
-            pady=12
-        )
-
-        ctk.CTkLabel(
-            err_frame,
-            text="❌",
-            font=("Segoe UI Emoji", 48)
-        ).pack(pady=(26, 10))
-
-        ctk.CTkLabel(
-            err_frame,
-            text=error_message,
-            font=("Inter", 14),
-            text_color="#ef4444",
-            wraplength=480
-        ).pack(pady=(0, 26))
-
-    # =========================================================
-    # DISPLAY AI RESULTS
-    # =========================================================
-
-    def display_ai_results(self, name_vn, accuracy, habitat, description, top_probs, features):
-
-        self.clear_results_panel()
-
-        # =====================================================
-        # TOP RESULT CARD
-        # =====================================================
-
-        fr_top1 = ctk.CTkFrame(
-            self.right_frame,
-            fg_color="#111827",
-            corner_radius=20,
-            border_width=1,
-            border_color="#1e293b"
-        )
-
-        fr_top1.pack(
-            fill="x",
-            padx=12,
-            pady=12
-        )
-
-        ctk.CTkLabel(
-            fr_top1,
-            text="🎯 LOÀI NHẬN DIỆN CAO NHẤT",
-            font=("Inter", 12, "bold"),
-            text_color="#34d399"
-        ).pack(anchor="w", padx=18, pady=(18, 6))
-
-        ctk.CTkLabel(
-            fr_top1,
-            text=name_vn,
-            font=("Inter", 28, "bold"),
-            text_color="#ffffff"
-        ).pack(anchor="w", padx=18)
-
-        progress = ctk.CTkProgressBar(
-            fr_top1,
-            height=12,
-            progress_color="#10b981"
-        )
-
-        progress.pack(fill="x", padx=18, pady=(18, 8))
-        progress.set(accuracy / 100.0)
-
-        ctk.CTkLabel(
-            fr_top1,
-            text=f"Độ chính xác AI: {accuracy}%",
-            font=("Inter", 13, "bold"),
-            text_color="#d1fae5"
-        ).pack(anchor="w", padx=18)
-
-        desc_txt = (
-            f"\n🌍 Môi trường sinh thái: {habitat}\n\n"
-            f"📝 Đặc điểm dược lý / hình thái:\n{description}"
-        )
-
-        lbl_desc = ctk.CTkLabel(
-            fr_top1,
-            text=desc_txt,
-            font=("Inter", 13),
-            justify="left",
-            wraplength=500,
-            text_color="#cbd5e1"
-        )
-
-        lbl_desc.pack(anchor="w", padx=18, pady=(8, 18))
-
-        # =====================================================
-        # TOP PROBS
-        # =====================================================
-
-        fr_probs = ctk.CTkFrame(
-            self.right_frame,
-            fg_color="#111827",
-            border_width=1,
-            border_color="#1e293b",
-            corner_radius=20
-        )
-
-        fr_probs.pack(
-            fill="x",
-            padx=12,
-            pady=12
-        )
-
-        ctk.CTkLabel(
-            fr_probs,
-            text="📊 TOP 3 ĐỘ TIN CẬY MÔ HÌNH",
-            font=("Inter", 14, "bold"),
-            text_color="#60a5fa"
-        ).pack(anchor="w", padx=18, pady=(18, 14))
-
-        for idx, item in enumerate(top_probs):
-
-            row = ctk.CTkFrame(
-                fr_probs,
-                fg_color="#0f172a",
-                corner_radius=14
-            )
-
-            row.pack(
-                fill="x",
-                padx=14,
-                pady=6
-            )
-
-            row.grid_columnconfigure(0, weight=1)
-
-            ctk.CTkLabel(
-                row,
-                text=f"Top {idx + 1}: {item['vn']}",
-                font=("Inter", 13, "bold"),
-                text_color="#f8fafc"
-            ).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 4))
-
-            ctk.CTkLabel(
-                row,
-                text=f"{item['percent']}%",
-                font=("Inter", 13, "bold"),
-                text_color="#38bdf8"
-            ).grid(row=0, column=1, sticky="e", padx=14)
-
-            progress = ctk.CTkProgressBar(
-                row,
-                height=8,
-                progress_color="#38bdf8"
-            )
-
-            progress.grid(
-                row=1,
-                column=0,
-                columnspan=2,
-                sticky="ew",
-                padx=14,
-                pady=(0, 14)
-            )
-
-            progress.set(item['percent'] / 100.0)
-
-        # =====================================================
-        # GLCM FEATURES
-        # =====================================================
-
-        fr_glcm = ctk.CTkFrame(
-            self.right_frame,
-            fg_color="#111827",
-            border_width=1,
-            border_color="#1e293b",
-            corner_radius=20
-        )
-
-        fr_glcm.pack(
-            fill="x",
-            padx=12,
-            pady=12
-        )
-
-        ctk.CTkLabel(
-            fr_glcm,
-            text="📐 THÔNG SỐ TEXTURE KẾT CẤU (GLCM)",
-            font=("Inter", 14, "bold"),
-            text_color="#a78bfa"
-        ).pack(anchor="w", padx=18, pady=(18, 14))
-
-        GLCM_VN_MAPPING = {
-            "Contrast": "Độ tương phản",
-            "Dissimilarity": "Độ không tương đồng",
-            "Homogeneity": "Độ đồng nhất",
-            "ASM": "Mô-men góc bậc hai",
-            "Energy": "Năng lượng",
-            "Max_Probability": "Xác suất cực đại",
-            "Entropy": "Độ hỗn loạn",
-            "GLCM_Mean": "Trung bình mức xám",
-            "GLCM_Variance": "Phương sai",
-            "Correlation": "Độ tương quan"
-        }
-
-        for key, val in features.items():
-
-            row_f = ctk.CTkFrame(
-                fr_glcm,
-                fg_color="#0f172a",
-                corner_radius=12
-            )
-
-            row_f.pack(
-                fill="x",
-                padx=14,
-                pady=4
-            )
-
-            vn_name = GLCM_VN_MAPPING.get(key, key)
-
-            display_name = f"{vn_name} ({key})"
-
-            ctk.CTkLabel(
-                row_f,
-                text=display_name,
-                font=("Inter", 12),
-                text_color="#cbd5e1"
-            ).pack(side="left", padx=14, pady=12)
-
-            ctk.CTkLabel(
-                row_f,
-                text=f"{val:.5f}",
-                font=("Consolas", 12, "bold"),
-                text_color="#c084fc"
-            ).pack(side="right", padx=14)
-
-    # =========================================================
-    # RENDER DATABASE
-    # =========================================================
-
-    def render_db_list(self, data_source, base_dir):
-
-        for widget in self.scroll_db.winfo_children():
-            widget.destroy()
-
-        if not data_source:
-
-            lbl_empty = ctk.CTkLabel(
-                self.scroll_db,
-                text="⚠️ Không tìm thấy loài cây phù hợp.",
-                font=("Inter", 14),
-                text_color="#94a3b8"
-            )
-
-            lbl_empty.pack(pady=40)
-            return
-
-        for cid, info in data_source.items():
-
-            card = ctk.CTkFrame(
-                self.scroll_db,
-                fg_color="#111827",
-                border_width=1,
-                border_color="#1e293b",
-                corner_radius=18
-            )
-
-            card.pack(
-                fill="x",
-                pady=8,
-                padx=10
-            )
-
-            card.grid_columnconfigure(0, weight=0)
-            card.grid_columnconfigure(1, weight=1)
-
-            # =================================================
-            # IMAGE FRAME
-            # =================================================
-
-            img_frame = ctk.CTkFrame(
-                card,
-                fg_color="#020617",
-                width=130,
-                height=130,
-                corner_radius=14
-            )
-
-            img_frame.grid(
-                row=0,
-                column=0,
-                padx=14,
-                pady=14,
-                sticky="nsew"
-            )
-
-            img_frame.pack_propagate(False)
-
-            first_image_path = None
-
-            train_folder = os.path.join(
-                base_dir,
-                "dataset",
-                "swedish_leaf_dataset",
-                "Swedish",
-                "Train",
-                f"Leaf {cid}"
-            )
-
-            test_folder = os.path.join(
-                base_dir,
-                "dataset",
-                "swedish_leaf_dataset",
-                "Swedish",
-                "Test",
-                f"Leaf {cid}"
-            )
-
-            folder_to_search = (
-                train_folder
-                if os.path.exists(train_folder)
-                else test_folder
-            )
-
-            if os.path.exists(folder_to_search):
-
-                images = [
-                    f for f in os.listdir(folder_to_search)
-                    if f.lower().endswith(
-                        ('.png', '.jpg', '.jpeg', '.tif')
-                    )
-                ]
-
-                if images:
-                    first_image_path = os.path.join(
-                        folder_to_search,
-                        images[0]
-                    )
-
-            if first_image_path:
-
-                try:
-
-                    pil_img = Image.open(first_image_path)
-                    pil_img.thumbnail((120, 120))
-
-                    ctk_img = ctk.CTkImage(
-                        light_image=pil_img,
-                        dark_image=pil_img,
-                        size=pil_img.size
-                    )
-
-                    lbl_img = ctk.CTkLabel(
-                        img_frame,
-                        image=ctk_img,
-                        text=""
-                    )
-
-                    lbl_img.place(
-                        relx=0.5,
-                        rely=0.5,
-                        anchor="center"
-                    )
-
-                except:
-
-                    ctk.CTkLabel(
-                        img_frame,
-                        text="Lỗi ảnh",
-                        font=("Inter", 11),
-                        text_color="#94a3b8"
-                    ).place(relx=0.5, rely=0.5, anchor="center")
-
-            else:
-
-                ctk.CTkLabel(
-                    img_frame,
-                    text="Chưa có ảnh",
-                    font=("Inter", 11),
-                    text_color="#64748b"
-                ).place(relx=0.5, rely=0.5, anchor="center")
-
-            # =================================================
-            # INFO FRAME
-            # =================================================
-
-            info_frame = ctk.CTkFrame(
-                card,
-                fg_color="transparent"
-            )
-
-            info_frame.grid(
-                row=0,
-                column=1,
-                padx=(0, 14),
-                pady=14,
-                sticky="nsew"
-            )
-
-            header_row = ctk.CTkFrame(
-                info_frame,
-                fg_color="transparent"
-            )
-
-            header_row.pack(
-                fill="x",
-                pady=(0, 8)
-            )
-
-            lbl_name = ctk.CTkLabel(
-                header_row,
-                text=info['name_vn'],
-                font=("Inter", 18, "bold"),
-                text_color="#34d399"
-            )
-
-            lbl_name.pack(side="left")
-
-            lbl_tag = ctk.CTkLabel(
-                header_row,
-                text=f"Label ID: {cid}",
-                font=("Consolas", 11, "bold"),
-                fg_color="#1e293b",
-                text_color="#cbd5e1",
-                corner_radius=8,
-                height=24,
-                padx=10
-            )
-
-            lbl_tag.pack(side="right")
-
-            body_txt = (
-                f"🌍 Phân bố sinh thái: {info['habitat']}\n\n"
-                f"📝 Đặc điểm mô tả:\n{info['description']}"
-            )
-
-            lbl_body = ctk.CTkLabel(
-                info_frame,
-                text=body_txt,
-                font=("Inter", 12),
-                justify="left",
-                wraplength=700,
-                text_color="#cbd5e1"
-            )
-
-            lbl_body.pack(anchor="w")
+```text
+Leaf Type: Simple
+Shape: Oval
+Margin: Wavy
+Texture: Smooth
+```
+
+---
+
+## 💊 Medicinal Information
+
+```text
+Medicinal Uses:
+- Anti-inflammatory
+- Skin treatment
+```
+
+---
+
+# 3. THÊM “AI ANALYSIS PANEL”
+
+Cái này cực kỳ tăng độ chuyên nghiệp.
+
+Sau khi predict:
+
+---
+
+## 📊 AI Confidence Meter
+
+Không chỉ progress bar.
+
+Hãy thêm:
+
+```text
+Prediction Confidence: HIGH
+Model Stability: GOOD
+Texture Similarity: 92%
+```
+
+---
+
+## 🧠 AI Decision Explanation
+
+Ví dụ:
+
+```text
+AI nhận diện loài này vì:
+• Mép lá trơn
+• Texture đồng nhất
+• Entropy thấp
+• Contrast trung bình
+```
+
+=> dùng logic mapping từ GLCM.
+
+Ví dụ:
+
+```python
+if features["Entropy"] < 2:
+    reasoning.append("Texture ổn định và ít nhiễu")
+
+if features["Contrast"] > 5:
+    reasoning.append("Độ tương phản cao")
+```
+
+App sẽ nhìn cực kỳ “AI”.
+
+---
+
+# 4. VISUALIZE GLCM FEATURES
+
+Đây là thứ giúp app khác demo bình thường.
+
+Hiện bạn chỉ show text:
+
+```text
+Contrast: 1.2421
+Entropy: 0.5321
+```
+
+=> rất chán.
+
+---
+
+## Hãy đổi thành:
+
+### 📈 Radar Chart
+
+Hiển thị:
+
+* Contrast
+* Energy
+* Entropy
+* Homogeneity
+* Correlation
+
+=> người xem nhìn phát hiểu AI đang phân tích texture.
+
+---
+
+## Hoặc mini bars:
+
+```text
+Contrast      ████████░░
+Entropy       ███░░░░░░░
+Homogeneity   ██████████
+```
+
+---
+
+# 5. IMAGE PROCESSING PIPELINE (RẤT QUAN TRỌNG)
+
+Thêm panel:
+
+```text
+Original Image
+↓
+Grayscale
+↓
+Threshold
+↓
+GLCM Matrix
+↓
+Feature Extraction
+↓
+SVM Classification
+```
+
+---
+
+## Có thể show:
+
+* ảnh grayscale
+* binary mask
+* contour
+* edge detection
+
+=> cực kỳ học thuật và chuyên nghiệp.
+
+---
+
+# 6. THÊM “DATASET INSIGHT”
+
+Tab mới:
+
+# 📊 Dataset Analytics
+
+Hiển thị:
+
+* số loài
+* số ảnh
+* số train/test
+* accuracy model
+* confusion matrix
+* top confused species
+
+---
+
+## Ví dụ:
+
+```text
+Total Species: 15
+Training Images: 1125
+Testing Images: 375
+SVM Accuracy: 96.4%
+```
+
+---
+
+# 7. NÂNG CẤP SEARCH
+
+Hiện chỉ search:
+
+* name
+* id
+
+---
+
+## Thêm search theo:
+
+* scientific name
+* family
+* habitat
+* medicinal uses
+
+Ví dụ:
+
+```python
+query in info["scientific_name"].lower()
+```
+
+---
+
+# 8. THÊM FILTER SYSTEM
+
+Ví dụ:
+
+* Filter theo họ cây
+* Filter theo môi trường sống
+* Filter theo lá đơn/lá kép
+
+---
+
+# 9. DARK UI CHUYÊN NGHIỆP HƠN
+
+Hiện tại màu hơi:
+
+* quá xanh
+* thiếu chiều sâu
+* thiếu glass effect
+
+---
+
+## Gợi ý palette:
+
+```python
+BACKGROUND = "#020617"
+CARD = "#0f172a"
+CARD_HOVER = "#111c33"
+
+PRIMARY = "#22c55e"
+SECONDARY = "#38bdf8"
+
+TEXT = "#f8fafc"
+SUBTEXT = "#94a3b8"
+
+BORDER = "#1e293b"
+```
+
+---
+
+# 10. THÊM ICON SYSTEM
+
+Dùng:
+
+* lucide
+* fluent icons
+* material symbols
+
+Ví dụ:
+
+```text
+🌿 Morphology
+🧠 AI Analysis
+📊 Statistics
+🧬 Scientific Data
+```
+
+---
+
+# 11. THÊM HISTORY SYSTEM
+
+Rất nên có.
+
+---
+
+## Scan History
+
+```text
+[10:42]
+Fagus sylvatica
+98.2%
+
+[10:39]
+Acer platanoides
+94.5%
+```
+
+---
+
+# 12. EXPORT REPORT
+
+Nút:
+
+# 📄 Export AI Report
+
+Xuất PDF gồm:
+
+* ảnh lá
+* kết quả AI
+* top probabilities
+* GLCM features
+* mô tả khoa học
+
+=> nhìn rất giống software nghiên cứu.
+
+---
+
+# 13. THÊM “MODEL INFORMATION”
+
+Panel:
+
+```text
+Classifier: SVM (RBF Kernel)
+Features: GLCM Texture Features
+Training Accuracy: 98.1%
+Dataset: Swedish Leaf Dataset
+```
+
+---
+
+# 14. THÊM “AI HEALTH STATUS”
+
+Ở góc UI:
+
+```text
+🟢 Model Ready
+🟢 Dataset Loaded
+🟢 Feature Extractor Active
+```
+
+---
+
+# 15. UI LAYOUT CHUYÊN NGHIỆP HƠN
+
+Hiện layout còn khá “stacked”.
+
+---
+
+## Hãy chia:
+
+```text
+LEFT:
+- upload
+- preview
+- pipeline
+
+RIGHT:
+- prediction
+- charts
+- scientific data
+- AI explanation
+```
+
+---
+
+# 16. THÊM “CONFUSION WARNING”
+
+Nếu top1 và top2 gần nhau:
+
+```python
+if abs(top1 - top2) < 10:
+```
+
+show:
+
+```text
+⚠️ AI nhận diện chưa chắc chắn.
+Loài này có đặc điểm gần với:
+- ...
+```
+
+=> cực kỳ chuyên nghiệp.
+
+---
+
+# 17. THÊM “FEATURE INTERPRETATION”
+
+Ví dụ:
+
+```text
+Entropy thấp → texture ổn định
+Homogeneity cao → cấu trúc lá đồng đều
+Contrast cao → gân lá nổi bật
+```
+
+=> giúp app mang tính học thuật.
+
+---
+
+# 18. NÂNG CẤP CARD DATABASE
+
+Hiện card hơi “flat”.
+
+---
+
+## Thêm:
+
+* scientific name italic
+* badge family
+* toxicity badge
+* medicinal badge
+* hover animation
+* expandable details
+
+---
+
+Ví dụ:
+
+```text
+Fagus sylvatica
+[Fagaceae]
+[Medicinal]
+[Non-toxic]
+```
+
+---
+
+# 19. THÊM SPLASH SCREEN
+
+Khi mở app:
+
+```text
+LeafVision AI
+Botanical Texture Classification System
+Powered by GLCM + SVM
+```
+
+Loading animation vài giây.
+
+---
+
+# 20. THÊM “REAL-TIME FEATURE EXTRACTION”
+
+Trong lúc AI chạy:
+
+```text
+[✓] Grayscale conversion
+[✓] GLCM matrix generation
+[✓] Texture extraction
+[✓] SVM prediction
+```
+
+=> người xem sẽ thấy app “đang suy nghĩ”.
+
+---
+
+Nếu bạn muốn, tôi còn có thể giúp bạn tiếp:
+
+* redesign toàn bộ UI theo kiểu modern AI desktop app
+* viết lại `main_window.py` chuyên nghiệp hơn rất nhiều
+* thêm charts matplotlib vào customtkinter
+* thêm animation
+* thêm sidebar hiện đại
+* thêm dashboard
+* thêm realtime processing pipeline
+* thêm export PDF
+* thêm architecture chuẩn MVC/MVVM
+* nâng cấp app thành portfolio-level project luôn.
