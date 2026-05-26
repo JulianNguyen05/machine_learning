@@ -7,7 +7,7 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
-.ipynb
+SVM_Project/SVM.ipynb
 
 # Thư mục chứa ảnh dữ liệu thô (Chỉ giữ lại code, không upload ảnh)
 dataset/swedish_leaf_dataset/
